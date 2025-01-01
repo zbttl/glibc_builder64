@@ -1,4 +1,4 @@
-name: glibcBuilder
+name: glibcBuilderRelease
 on:
   workflow_dispatch:
     inputs:
