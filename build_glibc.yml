@@ -1,0 +1,53 @@
+name: glibcBuilder2
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'select version to build'
+        default: '2.26'
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: |
+        docker build --build-arg GLIBC_VERSION=${{ github.event.inputs.device }} -t glibc-builder:latest .
+    
+    - name: Create output directory
+      run: mkdir -p output
+    
+    - name: Extract files from container
+      run: |
+        docker create --name temp glibc-builder:latest
+        docker cp temp:/glibc/${{ github.event.inputs.device }}/64/lib ./output/
+        docker rm temp
+    
+    - name: Create release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: glibc-${{ github.event.inputs.device }}
+        release_name: GLIBC ${{ github.event.inputs.device }}
+        draft: false
+        prerelease: false
+    
+    - name: Create archive
+      run: |
+        cd output
+        tar -czf glibc-${{ github.event.inputs.device }}-libs.tar.gz lib/
+    
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./output/glibc-${{ github.event.inputs.device }}-libs.tar.gz
+        asset_name: glibc-${{ github.event.inputs.device }}-libs.tar.gz
+        asset_content_type: application/gzip
